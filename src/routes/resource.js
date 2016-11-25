@@ -12,6 +12,7 @@ module.exports = function resource(endpoint, exclude, version) {
 
   const handleModelError = res => {
     return err => {
+      console.log(err);
       switch (err.name) {
         case ERR.modelErrors[ERR.VALIDATION_ERROR]:
           ERR.ApiError(res, 400, ERR.ERRNO_VALIDATION_ERROR, ERR.BAD_REQUEST,

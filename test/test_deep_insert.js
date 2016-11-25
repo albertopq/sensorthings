@@ -13,6 +13,7 @@ import supertest from 'supertest';
 import {
   datastreams,
   datastreamsNavigationLink,
+  featuresOfInterest,
   iotCount,
   iotId,
   locations,
@@ -42,7 +43,7 @@ db().then(models => {
   const prepath = '/v1.0/';
   const serverUrl = 'http://127.0.0.1:8001';
   describe('Deep insert', () => {
-    let thingId;
+    let observationId;
 
     before(done => {
       let promises = [];
@@ -50,129 +51,104 @@ db().then(models => {
        locations,
        observations,
        observedProperties,
+       featuresOfInterest,
        sensors,
        things].forEach(model => {
         promises.push(models[model].destroy({ where: {} }));
       });
       Promise.all(promises).then(() => {
         const body = {
-          'name': 'thing 1',
-          'description': 'thing 1',
-          'properties': {
-            'reference': 'first'
+          'phenomenonTime': '2015-01-25T20:00:00.000Z',
+          'result': {
+            'key': 'value'
           },
-          'Locations': [{
-            'name': 'location 1',
-            'description': 'location 1',
-            'location': {
+          'resultTime': '2015-01-25T20:00:00.000Z',
+          'validTime': '2015-01-25T20:00:00.000Z',
+          'parameters': [
+            {
+              'key': 'value'
+            }
+          ],
+          'FeatureOfInterest': {
+            'name': 'name',
+            'description': 'description',
+            'encodingType': 'application/vnd.geo+json',
+            'feature': {
               'type': 'Point',
               'coordinates': [-117.05, 51.05]
-            },
-            'encodingType': 'application/vnd.geo+json'
-          }],
-          'Datastreams': [{
+            }
+          },
+          'Datastream': {
+            'name': 'name',
+            'description': 'description',
             'unitOfMeasurement': {
-              'name': 'Lumen',
-              'symbol': 'lm',
-              'definition': 'Lumen'
+              'symbol': '%',
+              'name': 'Percentage',
+              'definition': 'http://www.qudt.org/qudt/owl/1.0.0/unit/Instances.html'
             },
-            'name': 'datastream 1',
-            'description': 'datastream 1',
-            'observationType': observationTypes.OM_MEASUREMENT,
-            'ObservedProperty': {
-              'name': 'Luminous Flux',
-              'definition': 'Instances.html/LuminousFlux',
-              'description': 'observedProperty 1'
+            'phenomenonTime': '2015-01-25T20:00:00.000Z',
+            'resultTime': '2015-01-25T20:00:00.000Z',
+            'observationType': 'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Observation',
+            'Thing': {
+              'name': 'name',
+              'description': 'description',
+              'properties': {
+                'key': 'value'
+              }
             },
             'Sensor': {
-              'name': 'sensor 1',
-              'description': 'sensor 1',
+              'name': 'name',
+              'description': 'description',
               'encodingType': 'application/pdf',
-              'metadata': 'Light flux sensor'
-            }
-          }, {
-            'unitOfMeasurement': {
-              'name': 'Centigrade',
-              'symbol': 'C',
-              'definition': 'Centigrade'
+              'metadata': 'http://example.org/TMP35_36_37.pdf'
             },
-            'name': 'datastream 2',
-            'description': 'datastream 2',
-            'observationType': observationTypes.OM_MEASUREMENT,
             'ObservedProperty': {
-              'name': 'Temperature',
-              'definition': 'Temperature',
-              'description': 'observedProperty 2'
-            },
-            'Sensor': {
-              'name': 'sensor 2',
-              'description': 'sensor 2',
-              'encodingType': 'application/pdf',
-              'metadata': 'Tempreture sensor'
+              'name': 'name',
+              'definition': 'definition',
+              'description': 'description'
             }
-          }]
+          }
         };
-        server.post(prepath + things).send(body)
+
+        server.post(prepath + observations).send(body)
         .expect('Content-Type', /json/)
         .expect(201)
         .end((err, res) => {
           should.not.exist(err);
-          thingId = res.body[iotId];
+          observationId = res.body[iotId];
           done();
         });
       });
     });
 
     after(done => {
-      // Make sure that "deep" deletion also works by deleting
+      // Make sure that 'deep' deletion also works by deleting
       // the recently inserted Thing. It should delete all associated
       // Datastreams and all associated Observations.
-      server.delete(prepath + things + '(' + thingId + ')')
+      server.delete(prepath + observations + '(' + observationId + ')')
       .expect(204)
       .end(err => {
         should.not.exist(err);
-        fetch(prepath + things).then(res => {
-          // There should be no Things.
+        fetch(prepath + observations).then(res => {
+          // There should be no Observations.
           res.body[iotCount].should.be.equal(0);
           return fetch(prepath + datastreams);
         }).then(res => {
           // There should be no Datastreams.
           res.body[iotCount].should.be.equal(0);
-          return fetch(prepath + observations);
+          return fetch(prepath + featuresOfInterest);
         }).then(res => {
-          // There should be no Observations.
+          // There should be no Datastreams.
           res.body[iotCount].should.be.equal(0);
           done();
         });
       });
     });
 
-    it('should create Thing entity and all its associations', done => {
+    it('should create Observation entity and all its associations', done => {
       let datastreamsLink;
-      fetch(prepath + things).then(res => {
-        res.body[iotCount].should.be.equal(1);
-        locationsLink = res.body.value[0][locationsNavigationLink];
-        datastreamsLink = res.body.value[0][datastreamsNavigationLink];
-        let locationsLink = locationsLink.replace(serverUrl, '');
-        datastreamsLink = datastreamsLink.replace(serverUrl, '');
-        should.exist(locationsLink);
-        should.exist(datastreamsLink);
-        return fetch(locationsLink);
-      }).then(res => {
-        res.body[iotCount].should.be.equal(1);
-        return fetch(datastreamsLink);
-      }).then(res => {
-        res.body[iotCount].should.be.equal(2);
-        res.body.value.should.be.instanceof(Array).and.have.lengthOf(2);
-        // XXX Issue 93. Allow singular entity names on resource paths
-        // Ideally we should use navigationLinks to get sensors and
-        // observed properties.
-        return models[sensors].findAll();
-      }).then(res => {
-        res.should.be.instanceof(Array).and.have.lengthOf(2);
-        return models[observedProperties].findAll();
-      }).then(res => {
-        res.should.be.instanceof(Array).and.have.lengthOf(2);
+      fetch(prepath + observations).then(res => {
+        console.log(res.body)
         done();
       });
     });
